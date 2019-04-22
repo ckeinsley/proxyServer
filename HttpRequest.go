@@ -27,6 +27,7 @@ func CreateHTTPRequest(connectionRequest string) HTTPRequest {
 	if len(slicedOnSlash) > 1 {
 		route += slicedOnSlash[1]
 	}
+	route = strings.Replace(route, "\n", "", -1)
 
 	hostWithPort := slicedOnSlash[0]
 	hostPortSlice := strings.Split(hostWithPort, ":")

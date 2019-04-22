@@ -17,7 +17,7 @@ func main() {
 	service := ":" + args[0]
 	tcpAddr, err := net.ResolveTCPAddr("tcp", service)
 	checkError(err)
-	fmt.Printf("listening on port %s\n", service)
+	fmt.Printf("listening on port %s\n~\n", service)
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	checkError(err)
 	for {
@@ -31,26 +31,48 @@ func main() {
 
 func handleClient(conn net.Conn) {
 	defer conn.Close()
-	var recvData = make([]byte, 1024)
+	var recvData = make([]byte, 1024*4)
 	conn.Read(recvData)
+	fmt.Printf("Got request: %s", string(recvData))
 
-	fmt.Printf("Got from browser: \"\n%s\"\n", string(recvData))
-	httpRequest := CreateHTTPRequest(string(recvData)) // TODO handle bad requests
-	result := sendRequest(httpRequest)
-	conn.Write(result)
+	request := parseHTTPRequest(conn, string(recvData))
+
+	sendRequest(conn, request)
 }
 
-func sendRequest(request HTTPRequest) []byte {
+func parseHTTPRequest(conn net.Conn, data string) HTTPRequest {
+	defer func() {
+		if recover() != nil {
+			conn.Write([]byte("400 Bad Request\n"))
+			conn.Close()
+		}
+	}()
+
+	httpRequest := CreateHTTPRequest(data)
+
+	return httpRequest
+}
+
+func sendRequest(conn net.Conn, request HTTPRequest) {
+	defer func() {
+		if recover() != nil {
+			conn.Write([]byte("500: Unable to connect to remote server\n"))
+			conn.Close()
+		}
+	}()
+
 	tcpAddr, err := net.ResolveTCPAddr("tcp", request.Host+":"+request.Port)
 	checkError(err)
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	remoteConn, err := net.DialTCP("tcp", nil, tcpAddr)
 	checkError(err)
 	connectionString := createConnectionString(request)
-	conn.Write([]byte(connectionString))
+	remoteConn.Write([]byte(connectionString))
 
-	result, err := ioutil.ReadAll(conn)
+	result, err := ioutil.ReadAll(remoteConn)
 	checkError(err)
-	return result
+
+	conn.Write(result)
+	conn.Close()
 }
 
 func createConnectionString(request HTTPRequest) string {
@@ -66,7 +88,7 @@ func createConnectionString(request HTTPRequest) string {
 
 func checkError(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Fatal error: %s\n", err.Error())
+		panic(err)
 	}
 }
