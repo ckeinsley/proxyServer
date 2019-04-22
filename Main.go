@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 )
@@ -32,8 +33,35 @@ func handleClient(conn net.Conn) {
 	defer conn.Close()
 	var recvData = make([]byte, 1024)
 	conn.Read(recvData)
-	fmt.Printf("\"\n%s\"\n", string(recvData))
-	conn.Write([]byte("welcome to proxy"))
+
+	fmt.Printf("Got from browser: \"\n%s\"\n", string(recvData))
+	httpRequest := CreateHTTPRequest(string(recvData)) // TODO handle bad requests
+	result := sendRequest(httpRequest)
+	conn.Write(result)
+}
+
+func sendRequest(request HTTPRequest) []byte {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", request.Host+":"+request.Port)
+	checkError(err)
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	checkError(err)
+	connectionString := createConnectionString(request)
+	conn.Write([]byte(connectionString))
+
+	result, err := ioutil.ReadAll(conn)
+	checkError(err)
+	return result
+}
+
+func createConnectionString(request HTTPRequest) string {
+	connectionString := ""
+	connectionString += request.Method + " " + request.Route + " " + request.Version + "\n"
+	connectionString += "Host: " + request.Host + "\n"
+	connectionString += request.Connection + "\n"
+	for _, header := range request.Headers {
+		connectionString += header + "\n"
+	}
+	return connectionString
 }
 
 func checkError(err error) {
