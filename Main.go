@@ -5,13 +5,22 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"strings"
 )
+
+var debug = false
 
 func main() {
 	args := os.Args[1:]
-	if len(args) != 1 {
+	if len(args) < 1 {
 		fmt.Println("Usage ./proxy <PORT>")
 		panic(nil)
+	}
+
+	if len(args) > 1 {
+		if strings.Compare("-d", args[1]) == 0 {
+			debug = true
+		}
 	}
 
 	service := ":" + args[0]
@@ -34,7 +43,10 @@ func handleClient(conn net.Conn) {
 	defer conn.Close()
 	var recvData = make([]byte, 1024*4)
 	conn.Read(recvData)
-	fmt.Printf("Got request: %s", string(recvData))
+
+	if debug {
+		fmt.Printf("Got request: %s", string(recvData))
+	}
 
 	request := parseHTTPRequest(conn, string(recvData))
 
@@ -71,8 +83,10 @@ func sendRequest(conn net.Conn, request HTTPRequest) {
 	remoteConn, err := net.DialTCP("tcp", nil, tcpAddr)
 	checkError(err)
 	connectionString := createConnectionString(request)
+
 	remoteConn.Write([]byte(connectionString))
 
+	// Not getting EOF?
 	result, err := ioutil.ReadAll(remoteConn)
 	checkError(err)
 
@@ -90,6 +104,7 @@ func createConnectionString(request HTTPRequest) string {
 	for _, header := range request.Headers {
 		connectionString += header + "\n"
 	}
+	connectionString += "\n"
 	return connectionString
 }
 

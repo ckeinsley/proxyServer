@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -27,7 +28,10 @@ func CreateHTTPRequest(connectionRequest string) HTTPRequest {
 	if len(slicedOnSlash) > 1 {
 		route += slicedOnSlash[1]
 	}
-	route = strings.Replace(route, "\n", "", -1)
+	// fmt.Printf("=====%s=====\n", route)
+	re := regexp.MustCompile(`\r?\n`)
+	route = re.ReplaceAllString(route, "")
+	// fmt.Printf("=====%s=====\n", route)
 
 	hostWithPort := slicedOnSlash[0]
 	hostPortSlice := strings.Split(hostWithPort, ":")
