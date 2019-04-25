@@ -13,3 +13,6 @@
 
 # binary
 proxy*
+
+# temp folder
+temp/*
