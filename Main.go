@@ -25,10 +25,11 @@ func main() {
 		if err != nil {
 			continue
 		}
-		go handleClient(conn)
+		go handleClient(conn) // This is where we use multi-processing in golang
 	}
 }
 
+// When the client makes a request the handleClient function processes it
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 	var recvData = make([]byte, 1024*4)
@@ -40,6 +41,8 @@ func handleClient(conn net.Conn) {
 	sendRequest(conn, request)
 }
 
+// parseHTTPRequest takes the client request and constructs
+// our HttpRequest object from it
 func parseHTTPRequest(conn net.Conn, data string) HTTPRequest {
 	defer func() {
 		if recover() != nil {
@@ -53,6 +56,8 @@ func parseHTTPRequest(conn net.Conn, data string) HTTPRequest {
 	return httpRequest
 }
 
+// Once the client request has been processed our sendRequest function
+// handles external communication
 func sendRequest(conn net.Conn, request HTTPRequest) {
 	defer func() {
 		if recover() != nil {
@@ -75,6 +80,8 @@ func sendRequest(conn net.Conn, request HTTPRequest) {
 	conn.Close()
 }
 
+// createConnectionString takes our HTTPRequest object and generates
+// the connection string used in sendRequest
 func createConnectionString(request HTTPRequest) string {
 	connectionString := ""
 	connectionString += request.Method + " " + request.Route + " " + request.Version + "\n"
@@ -86,6 +93,7 @@ func createConnectionString(request HTTPRequest) string {
 	return connectionString
 }
 
+// checkError handles panic escalation
 func checkError(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s\n", err.Error())
