@@ -36,3 +36,4 @@ build_mac_64:
 
 clean:
 	rm $(BINARY_NAME)*
+	rm -f ./temp/*

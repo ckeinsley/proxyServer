@@ -6,9 +6,13 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/go-redis/redis"
 )
 
 var debug = false
+var client *redis.Client
 
 func main() {
 	args := os.Args[1:]
@@ -22,6 +26,16 @@ func main() {
 			debug = true
 		}
 	}
+
+	// Connect to cache
+	client = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	_, err := client.Ping().Result()
+	checkError(err)
 
 	service := ":" + args[0]
 	tcpAddr, err := net.ResolveTCPAddr("tcp", service)
@@ -49,8 +63,33 @@ func handleClient(conn net.Conn) {
 	}
 
 	request := parseHTTPRequest(conn, string(recvData))
+	if checkCache(conn, request) {
+		return
+	}
 
 	sendRequest(conn, request)
+}
+
+func checkCache(conn net.Conn, request HTTPRequest) bool {
+	key := string(request.Hash)
+	key = "./temp/" + key
+
+	_, err := client.Get(key).Result()
+	if err == redis.Nil {
+		fmt.Println("Cache Miss")
+		return false
+	}
+
+	if debug {
+		fmt.Println("Cache Hit")
+	}
+
+	f, err := os.Open(key)
+	checkError(err)
+	result, err := ioutil.ReadAll(f)
+	checkError(err)
+	conn.Write(result)
+	return true
 }
 
 // parseHTTPRequest takes the client request and constructs
@@ -84,14 +123,35 @@ func sendRequest(conn net.Conn, request HTTPRequest) {
 	checkError(err)
 	connectionString := createConnectionString(request)
 
+	if debug {
+		fmt.Printf("Sending to Remote: %s\n", connectionString)
+	}
+
 	remoteConn.Write([]byte(connectionString))
 
 	// Not getting EOF?
 	result, err := ioutil.ReadAll(remoteConn)
 	checkError(err)
 
+	writeToCache(request, string(result))
 	conn.Write(result)
 	conn.Close()
+}
+
+func writeToCache(request HTTPRequest, data string) {
+	key := string(request.Hash)
+	key = "./temp/" + key
+
+	if debug {
+		fmt.Println("Creating Cache entry")
+	}
+	f, err := os.Create(key)
+	checkError(err)
+	_, err = f.WriteString(data)
+	checkError(err)
+	f.Close()
+
+	client.Set(key, 1, time.Duration(time.Minute*5))
 }
 
 // createConnectionString takes our HTTPRequest object and generates

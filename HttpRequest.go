@@ -1,7 +1,9 @@
 package main
 
 import (
+	"hash/fnv"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -14,13 +16,14 @@ type HTTPRequest struct {
 	Route      string // Requested page
 	Headers    []string
 	Connection string // Always Connection: close
+	Hash       string
 }
 
 // CreateHTTPRequest creates an HTTPRequest object out of the string sent to the proxy
 // example of input below
 func CreateHTTPRequest(connectionRequest string) HTTPRequest {
 	spaceSplitRequest := strings.Split(connectionRequest, " ")
-
+	method := spaceSplitRequest[0]
 	noHTTP := strings.Replace(spaceSplitRequest[1], "http://", "", 1)
 
 	slicedOnSlash := strings.SplitN(noHTTP, "/", 2)
@@ -28,10 +31,8 @@ func CreateHTTPRequest(connectionRequest string) HTTPRequest {
 	if len(slicedOnSlash) > 1 {
 		route += slicedOnSlash[1]
 	}
-	// fmt.Printf("=====%s=====\n", route)
 	re := regexp.MustCompile(`\r?\n`)
 	route = re.ReplaceAllString(route, "")
-	// fmt.Printf("=====%s=====\n", route)
 
 	hostWithPort := slicedOnSlash[0]
 	hostPortSlice := strings.Split(hostWithPort, ":")
@@ -42,13 +43,14 @@ func CreateHTTPRequest(connectionRequest string) HTTPRequest {
 	}
 
 	return HTTPRequest{
-		Method:     spaceSplitRequest[0],
+		Method:     method,
 		Host:       host,
 		Route:      route,
 		Version:    "HTTP/1.0",
 		Port:       port,
 		Headers:    parseHeaders(connectionRequest),
 		Connection: "Connection: close",
+		Hash:       hash(host + port + route + method),
 	}
 }
 
@@ -67,6 +69,12 @@ func parseHeaders(connectionRequest string) []string {
 	}
 
 	return headers
+}
+
+func hash(s string) string {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return strconv.Itoa(int(h.Sum32()))
 }
 
 /* Example Requests coming into proxy */
